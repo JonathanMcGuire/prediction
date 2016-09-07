@@ -1,0 +1,65 @@
+---
+title: "Predicitons Assignment"
+author: "Jonathan McGuire"
+date: "6 September 2016"
+output: html_document
+---
+
+# Introduction
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit it is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement – a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it. In this project, your goal will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. More information is available from the website here: http://groupware.les.inf.puc-rio.br/har (see the section on the Weight Lifting Exercise Dataset).
+
+# Model building
+
+```{r libraries}
+# Load libraries
+pacman::p_load(caret,randomForest)
+```
+
+The first step in analysis is to download and clean the data. Both the training and quiz datasets include summary variables that contain mostly NA values. These variables, variables with near zero variation, and administrative variables were removed from the training dataset.
+
+```{r downloads, cache=TRUE}
+dat <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv", na.strings=c("NA","","#DIV/0!")) # Download training dataset
+dat <- dat[,-(1:7)] # Remove administrative variables
+dat <- dat[, -nearZeroVar(dat)] # Remove near zero variation variables
+dat <- dat[, colMeans(is.na(dat)) <= .1] # Remove high NA variables
+quiz <- read.csv("https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv", na.strings=c("NA","","#DIV/0!")) # Download quiz dataset
+```
+
+This analysis used the random forest procedure. Random forest is one of the most accurate algorithms for classification, as it combines the strengths of regression trees and bagging. In addition, random forest can use cross validation for estimating out of sample error, but as the sample size is large it is possible to split the data into training and test data sets to allow for direct assessment of out of sample error. Thus, data was split into training and test sets.
+
+```{r preprocessing, cache=TRUE}
+set.seed(22222)
+InTrain<-createDataPartition(y=dat$classe,p=0.6,list=FALSE) # Create sampling variable
+training<- dat[InTrain,] # Create training dataset
+testing <- dat[-InTrain,] # Create testing dataset
+```
+
+While the caret package can be used to call the random forest algorithm, this is slow on a dataset of this size. Therefore the randomForest package was used for developing the model. 5 way cross-validation was used within the modelling procedure.
+
+```{r modelling2, cache=TRUE}
+mod<-randomForest(training$classe ~ ., data=training, method="rf", trControl=trainControl(method="cv",number=5, allowParallel=TRUE), prox=TRUE)
+```
+
+# Model
+
+As can be seen below, the model has an estimated out-of-bag error rate of 0.7%.
+
+```{r mod, cache=TRUE}
+print(mod)
+plot(mod)
+```
+
+# Fit and predictions
+
+Applying the model to the test dataset resulted in 99.44% accuracy, similar to that predicted by the cross-validation within the model build.
+
+```{r modelFit, cache = TRUE}
+confusionMatrix(predict(mod,testing), testing$classe) # Internal test
+```
+
+Applying the model to the quiz dataset results in the following predictions:
+
+```{r quizPredicitons, cache=TRUE}
+predict(mod, quiz) # Quiz predictions
+```
